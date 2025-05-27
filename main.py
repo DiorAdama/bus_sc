@@ -40,29 +40,29 @@ def get_osrm_route(stops: pd.DataFrame) -> list[tuple[float, float]] | None:
         return None
     
 
-def add_route_to_map(
-    plot: folium.Map,
+def build_bus_line(
     route_name: str,
     route_points: list[tuple[float, float]],
     route_stops: list[tuple[float, float, str]]
-) -> None:
+) -> folium.FeatureGroup:
+    bus_line = folium.FeatureGroup(name=f"Bus {route_name.capitalize()}")
     folium.Marker(
         location=route_points[0],
         tooltip=route_stops[0][2],
         icon=folium.Icon(color='green', icon='play', prefix='fa')
-    ).add_to(plot)
+    ).add_to(bus_line)
     for point in route_stops[1:-1]:
         folium.Marker(
             location=point[:2],
             icon=folium.Icon(color='orange', icon='info-sign', prefix='fa'),
             tooltip=point[2],
             opacity=0.4
-        ).add_to(plot)
+        ).add_to(bus_line)
     folium.Marker(
         location=route_points[st.session_state[route_name]], # Slightly different location
         tooltip=f"Bus {route_name.capitalize()}",
         icon=folium.Icon(color='blue', icon='bus', prefix='fa')
-    ).add_to(plot)
+    ).add_to(bus_line)
     # Add the PolyLine to highlight the road itinerary using OSRM data
     folium.PolyLine(
         locations=route_points, # Use the decoded points from OSRM
@@ -70,7 +70,8 @@ def add_route_to_map(
         weight=5,           # Thickness of the line
         opacity=0.5,        # Transparency of the line
         tooltip="Road Itinerary"
-    ).add_to(plot)
+    ).add_to(bus_line)
+    return bus_line
 
 
 def init_map() -> folium.Map:
@@ -96,13 +97,15 @@ def build_map():
         routes[route_path.stem] = osm_route
         if route_path.stem not in st.session_state:
             st.session_state[route_path.stem] = 0
-        add_route_to_map(plot, route_path.stem, osm_route, route_frame.values.tolist())
+        bus_line = build_bus_line(route_path.stem, osm_route, route_frame.values.tolist())
+        bus_line.add_to(plot)
     build_sidebar(routes)
+    folium.LayerControl(position="topleft", collapsed=True).add_to(plot)
     return plot
 
 def build_sidebar(routes: dict[str, list[tuple[float, float]]]) -> None:
     st.sidebar.header("Position des Bus")
-    if st.sidebar.button("Rafraichir la carte"):
+    if st.sidebar.button("Rafraîchir la carte"):
         for route_name, route in routes.items():
             trip_length = random.randint(5, 15)
             step = len(route)//trip_length
